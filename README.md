@@ -30,86 +30,8 @@ represented by other finer terms.
 ``` r
 library(data.table)
 library(ggplot2)
-library(tidyverse)
-#> ── Attaching packages ─────────────────────────────────────────────────────────────────────────────── tidyverse 1.2.1 ──
-#> ✔ tibble  2.1.3     ✔ purrr   0.3.2
-#> ✔ tidyr   0.8.3     ✔ dplyr   0.8.3
-#> ✔ readr   1.3.1     ✔ stringr 1.4.0
-#> ✔ tibble  2.1.3     ✔ forcats 0.4.0
-#> ── Conflicts ────────────────────────────────────────────────────────────────────────────────── tidyverse_conflicts() ──
-#> ✖ dplyr::between()   masks data.table::between()
-#> ✖ dplyr::filter()    masks stats::filter()
-#> ✖ dplyr::first()     masks data.table::first()
-#> ✖ dplyr::lag()       masks stats::lag()
-#> ✖ dplyr::last()      masks data.table::last()
-#> ✖ purrr::transpose() masks data.table::transpose()
-library(org.Hs.eg.db)
-#> Loading required package: AnnotationDbi
-#> Loading required package: stats4
-#> Loading required package: BiocGenerics
-#> Loading required package: parallel
-#> 
-#> Attaching package: 'BiocGenerics'
-#> The following objects are masked from 'package:parallel':
-#> 
-#>     clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
-#>     clusterExport, clusterMap, parApply, parCapply, parLapply,
-#>     parLapplyLB, parRapply, parSapply, parSapplyLB
-#> The following objects are masked from 'package:dplyr':
-#> 
-#>     combine, intersect, setdiff, union
-#> The following objects are masked from 'package:stats':
-#> 
-#>     IQR, mad, sd, var, xtabs
-#> The following objects are masked from 'package:base':
-#> 
-#>     anyDuplicated, append, as.data.frame, basename, cbind,
-#>     colMeans, colnames, colSums, dirname, do.call, duplicated,
-#>     eval, evalq, Filter, Find, get, grep, grepl, intersect,
-#>     is.unsorted, lapply, lengths, Map, mapply, match, mget, order,
-#>     paste, pmax, pmax.int, pmin, pmin.int, Position, rank, rbind,
-#>     Reduce, rowMeans, rownames, rowSums, sapply, setdiff, sort,
-#>     table, tapply, union, unique, unsplit, which, which.max,
-#>     which.min
-#> Loading required package: Biobase
-#> Welcome to Bioconductor
-#> 
-#>     Vignettes contain introductory material; view with
-#>     'browseVignettes()'. To cite Bioconductor, see
-#>     'citation("Biobase")', and for packages 'citation("pkgname")'.
-#> Loading required package: IRanges
-#> Loading required package: S4Vectors
-#> 
-#> Attaching package: 'S4Vectors'
-#> The following objects are masked from 'package:dplyr':
-#> 
-#>     first, rename
-#> The following object is masked from 'package:tidyr':
-#> 
-#>     expand
-#> The following objects are masked from 'package:data.table':
-#> 
-#>     first, second
-#> The following object is masked from 'package:base':
-#> 
-#>     expand.grid
-#> 
-#> Attaching package: 'IRanges'
-#> The following objects are masked from 'package:dplyr':
-#> 
-#>     collapse, desc, slice
-#> The following object is masked from 'package:purrr':
-#> 
-#>     reduce
-#> The following object is masked from 'package:data.table':
-#> 
-#>     shift
-#> 
-#> Attaching package: 'AnnotationDbi'
-#> The following object is masked from 'package:dplyr':
-#> 
-#>     select
-#> 
+suppressMessages(library(tidyverse))  # For pipe
+suppressMessages(library(org.Hs.eg.db))
 
 BP.terms <- as.data.table(AnnotationDbi::select(org.Hs.eg.db, keys = 'BP', columns = c('GO', 'ENTREZID'), keytype = "ONTOLOGY"))
 #> 'select()' returned 1:many mapping between keys and columns
@@ -143,15 +65,31 @@ BP.terms <- BP.terms[count < 80]
 BP.terms[, count := NULL]
 setnames(BP.terms, 3, 'GID')
 setcolorder(BP.terms, c('GID', 'GO', 'EVIDENCE'))
+go.gene <- dcast(BP.terms, GO ~ GID)
+#> Using 'EVIDENCE' as value column. Use 'value.var' to override
+for (j in 2:ncol(go.gene)) set(go.gene, which(!is.na(go.gene[[j]])), j, 1L)
+for (j in 2:ncol(go.gene)) set(go.gene, which(is.na(go.gene[[j]])), j, 0L)
+go.gene <- go.gene[, lapply(.SD, as.numeric), by = GO]
+go.gene <- as.data.frame(go.gene) %>% remove_rownames %>% column_to_rownames(var = "GO")
 
-# go.gene <- dcast(BP.terms, GO ~ GID)
-# for (j in 2:ncol(go.gene)) set(go.gene, which(!is.na(go.gene[[j]])), j, 1L)
-# for (j in 2:ncol(go.gene)) set(go.gene, which(is.na(go.gene[[j]])), j, 0L)
-# go.gene <- go.gene[, lapply(.SD, as.numeric), by = GO]
-# go.gene <- as.data.frame(go.gene) %>% remove_rownames %>% column_to_rownames(var = "GO")
-# 
+# For it takes too long to run, I saved the result for reusing
 # library(vegan)
-# jaccard <- 1 - vegdist(go.gene, method = "jaccard")
+# BP.jaccard <- 1 - vegdist(go.gene, method = "jaccard")
+load('BP.jaccard.xz')
+BP.jaccard <- as.matrix(BP.jaccard)
+BP.jaccard[!upper.tri(BP.jaccard)] <- 0
+BP.jaccard <- as.data.table(BP.jaccard, keep.rownames = 'GO')
+BP.jaccard <- melt(BP.jaccard, id.vars = 'GO')
+BP.jaccard <- merge(BP.jaccard, BP.terms.uniq, by.x = 'GO', by.y = 'GO')
+BP.jaccard[, `:=`(EVIDENCE = NULL, ENTREZID = NULL)]
+setnames(BP.jaccard, c('GO', 'variable', 'count'), c('GO_1', 'GO_2', 'GO_1_count'))
+BP.jaccard <- merge(BP.jaccard, BP.terms.uniq, by.x = 'GO_2', by.y = 'GO')
+BP.jaccard[, `:=`(EVIDENCE = NULL, ENTREZID = NULL)]
+setnames(BP.jaccard, 'count', 'GO_2_count')
+# Should mark redundant GO terms as "to be removed" here, or all of them will be kept
+BP.jaccard[, remove := ifelse(value > 0.9, ifelse(GO_1_count > GO_2_count, GO_1, GO_2), NA), by = .I]
+to.remove <- unique(na.omit(BP.jaccard), by = 'remove')
+BP.terms <- BP.terms[setdiff(GO, to.remove[['remove']]), on = 'GO']
 
 CC.terms <- as.data.table(AnnotationDbi::select(org.Hs.eg.db, keys = 'CC', columns = c('GO', 'ENTREZID'), keytype = "ONTOLOGY"))
 #> 'select()' returned 1:many mapping between keys and columns
@@ -185,6 +123,28 @@ CC.terms <- CC.terms[count < 175]
 CC.terms[, count := NULL]
 setnames(CC.terms, 3, 'GID')
 setcolorder(CC.terms, c('GID', 'GO', 'EVIDENCE'))
+go.gene <- dcast(CC.terms, GO ~ GID)
+#> Using 'EVIDENCE' as value column. Use 'value.var' to override
+for (j in 2:ncol(go.gene)) set(go.gene, which(!is.na(go.gene[[j]])), j, 1L)
+for (j in 2:ncol(go.gene)) set(go.gene, which(is.na(go.gene[[j]])), j, 0L)
+go.gene <- go.gene[, lapply(.SD, as.numeric), by = GO]
+go.gene <- as.data.frame(go.gene) %>% remove_rownames %>% column_to_rownames(var = "GO")
+
+# CC.jaccard <- 1 - vegdist(go.gene, method = "jaccard")
+load('CC.jaccard.xz')
+CC.jaccard <- as.matrix(CC.jaccard)
+CC.jaccard[!upper.tri(CC.jaccard)] <- 0
+CC.jaccard <- as.data.table(CC.jaccard, keep.rownames = 'GO')
+CC.jaccard <- melt(CC.jaccard, id.vars = 'GO')
+CC.jaccard <- merge(CC.jaccard, CC.terms.uniq, by.x = 'GO', by.y = 'GO')
+CC.jaccard[, `:=`(EVIDENCE = NULL, ENTREZID = NULL)]
+setnames(CC.jaccard, c('GO', 'variable', 'count'), c('GO_1', 'GO_2', 'GO_1_count'))
+CC.jaccard <- merge(CC.jaccard, CC.terms.uniq, by.x = 'GO_2', by.y = 'GO')
+CC.jaccard[, `:=`(EVIDENCE = NULL, ENTREZID = NULL)]
+setnames(CC.jaccard, 'count', 'GO_2_count')
+CC.jaccard[, remove := ifelse(value > 0.9, ifelse(GO_1_count > GO_2_count, GO_1, GO_2), NA), by = .I]
+to.remove <- unique(na.omit(CC.jaccard), by = 'remove')
+CC.terms <- CC.terms[setdiff(GO, to.remove[['remove']]), on = 'GO']
 
 MF.terms <- as.data.table(AnnotationDbi::select(org.Hs.eg.db, keys = 'MF', columns = c('GO', 'ENTREZID'), keytype = "ONTOLOGY"))
 #> 'select()' returned 1:many mapping between keys and columns
@@ -198,8 +158,8 @@ hGO <- rbind(BP.terms, CC.terms, MF.terms)
 And package directory was built:
 
 ``` r
-makeOrgPackage(go = hGO,
-               version = "0.99.0",
+AnnotationForge::makeOrgPackage(go = hGO,
+               version = "1.0.0",
                maintainer = "Yu Sun <suny226@mail2.sysu.edu.cn>",
                author = "Yu Sun <suny226@mail2.sysu.edu.cn>",
                outputDir = ".",
@@ -238,3 +198,21 @@ package.
 tryCatch(DBI::dbSendQuery(dbconn, 'ALTER TABLE genes RENAME COLUMN GID to gene_id'), error=function(e) NULL)
 lapply(c('go_bp', 'go_cc', 'go_mf'), function(x) tryCatch(DBI::dbSendQuery(dbconn, paste0('ALTER TABLE ', x, ' RENAME COLUMN GO to go_id')), error=function(e) NULL))
 ```
+
+Finally, the package root directory was packed and published：
+
+``` bash
+tar cf - org.HsSimple.eg.db | pigz -9 -p 16 > org.HsSimple.eg.db.tar.gz
+```
+
+## Contributions
+
+[Yu Sun](https://github.com/bioinformatist/) (maintainer) designed and
+implemented the database. [Shuang
+Deng](https://github.com/dengshuang0116/) calculated all Jaccard
+similarity distance.
+
+## Acknowledgment
+
+We thank Ms. Wenyi Zhou of A.S. Wastons Group for her professional
+writing advice.
