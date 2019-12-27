@@ -158,7 +158,7 @@ lapply(c('go_bp', 'go_cc', 'go_mf'), function(x) tryCatch(DBI::dbSendQuery(dbcon
 Finally, the package root directory was packed and published：
 
 ```bash
-tar cf - org.HsSimple.eg.db | pigz -9 -p 16 > org.HsSimple.eg.db.tar.gz
+tar cf - org.HsSimple.eg.db | pbzip2 -r > org.HsSimple.eg.db.tar.xz
 ```
 
 ## Contributions
