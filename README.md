@@ -205,6 +205,25 @@ Finally, the package root directory was packed and published：
 tar cf - org.HsSimple.eg.db | pbzip2 -r > org.HsSimple.eg.db.tar.xz
 ```
 
+For instance, `org.HsSimple.eg.db` can be queried directly as an
+argument of `topGO::annFUN.org()` as below:
+
+``` r
+library(org.HsSimple.eg.db)
+topGO::annFUN.org('BP', feasibleGenes = x, mapping = 'org.HsSimple.eg.db', ID = "entrez")
+```
+
+while `x` stands for an Entrez gene ID.
+
+## GO - Entrez mapping relationship R object
+
+For special use, we also packaged an R object with xz compression:
+
+``` r
+hGO[, EVIDENCE:=NULL]
+save(hGO, file = 'hGO.xz', compress = 'xz')
+```
+
 ## Contributions
 
 [Yu Sun](https://github.com/bioinformatist/) (maintainer) designed and
@@ -214,5 +233,5 @@ similarity distance.
 
 ## Acknowledgment
 
-We thank Ms. Wenyi Zhou of A.S. Wastons Group for her professional
+We thank Ms. Crystal Zhou of A.S. Wastons Group for her professional
 writing advice.
