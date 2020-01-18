@@ -220,6 +220,10 @@ while `x` stands for an Entrez gene ID.
 For special use, we also packaged an R object with xz compression:
 
 ``` r
+BP.terms[, Onto := 'BP']
+MF.terms[, Onto := 'MF']
+CC.terms[, Onto := 'CC']
+hGO <- rbind(BP.terms, CC.terms, MF.terms)
 hGO[, EVIDENCE:=NULL]
 save(hGO, file = 'hGO.xz', compress = 'xz')
 ```
