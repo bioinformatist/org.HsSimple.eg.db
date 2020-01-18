@@ -228,6 +228,7 @@ hGO[, EVIDENCE:=NULL]
 hGO[, count := .N, by = GO]
 setkey(hGO, count)
 hGO <- hGO[!.(1)]
+hGO[, count := NULL]
 save(hGO, file = 'hGO.xz', compress = 'xz')
 ```
 
