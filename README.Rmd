@@ -180,6 +180,9 @@ MF.terms[, Onto := 'MF']
 CC.terms[, Onto := 'CC']
 hGO <- rbind(BP.terms, CC.terms, MF.terms)
 hGO[, EVIDENCE:=NULL]
+hGO[, count := .N, by = GO]
+setkey(hGO, count)
+hGO <- hGO[!.(1)]
 save(hGO, file = 'hGO.xz', compress = 'xz')
 ```
 
